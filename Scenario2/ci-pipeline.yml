@@ -1,0 +1,29 @@
+trigger:
+- none
+
+pool: 'newagentpool'
+
+steps:
+- task: CmdLine@2
+  inputs:
+    script: 'echo Write your commands here.' 
+
+
+- task: Bash@3
+  inputs:
+     targetType: 'inline'
+     script: /home/tddjmeterdemo/apache-jmeter-5.4.1/bin/jmeter.sh -n -t /home/tddjmeterdemo/jmeter_demo.jmx -l $(Build.SourcesDirectory)/LoadReports/results.jtl -e -o $(Build.SourcesDirectory)/LoadReports
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: /home/tddjmeterdemo/LoadReports
+    artifactName: LoadTestReport
+
+- script: |
+    cat /home/tddjmeterdemo/LoadReports/results.jtl | grep 'The operation lasted too long'
+    rc=$(echo $?)
+    if [[ $rc==0 ]]
+    then
+    echo "Failed performance test cases as time taken by API is more than the defined threshold"
+    exit 1
+    fi
