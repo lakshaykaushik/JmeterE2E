@@ -1,0 +1,59 @@
+trigger:
+- none
+
+pool: 'newagentpool'
+
+steps:
+- task: CmdLine@2
+  inputs:
+    script: 'echo Write your commands here.' 
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/LOADDURATION/$(LOADDURATION)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Load Duration
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/USERS/$(USERS)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Number of Users
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/DELAY/$(DELAY)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Initial Delay
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/STARTUP/$(STARTUP)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Startup Time
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/SHUTDOWN/$(SHUTDOWN)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Shutdown Time
+
+
+- task: Bash@3
+  inputs:
+     targetType: 'inline'
+     script: /home/tddjmeterdemo/apache-jmeter-5.4.1/bin/jmeter.sh -n -t $(Build.SourcesDirectory)/jmeter_demo.jmx -l LoadReports/results.jtl -e -o LoadReports
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: $(Build.SourcesDirectory)/LoadReports
+    artifactName: NewLoadTestReport
+
+- task: publishhtmlreport@1
+  inputs:
+    htmlType: 'Jmeter'
+    JmeterReportsPath: '$(Build.SourcesDirectory)/LoadReports'
+    #htmlPath: '$(Build.SourcesDirectory)/Sample.html'
+
+  
+
