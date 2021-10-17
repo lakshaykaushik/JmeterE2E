@@ -1,0 +1,133 @@
+
+trigger:
+- none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+
+variables:
+  - group: Details
+  - name: var4
+    value: $[variables.var1]
+  - name: var5
+    value: $[variables.var2]
+  - name: var6
+    value: $[variables.var3]
+
+steps:
+- task: Kubernetes@1
+  displayName: kubectl get pods
+  inputs:
+    connectionType: Azure Resource Manager
+    azureSubscriptionEndpoint: demojmeter
+    azureResourceGroup: jmeter
+    kubernetesCluster: jmeterdemo
+    useClusterAdmin: false
+    command: get
+    arguments: pods
+
+
+- task: Kubernetes@1
+  displayName: Deploy Slave pods
+  inputs:
+    connectionType: Azure Resource Manager
+    azureSubscriptionEndpoint: demojmeter
+    azureResourceGroup: jmeter
+    kubernetesCluster: jmeterdemo
+    useClusterAdmin: false
+    command: apply
+    arguments: -f jmeter_slaves_svc.yaml
+
+- task: Kubernetes@1
+  displayName: Deploy Slave pods
+  inputs:
+    connectionType: Azure Resource Manager
+    azureSubscriptionEndpoint: demojmeter
+    azureResourceGroup: jmeter
+    kubernetesCluster: jmeterdemo
+    useClusterAdmin: false
+    command: apply
+    arguments: -f jmeter_slaves_deploy.yaml
+
+- task: Kubernetes@1
+  displayName: Deploy Master pods
+  inputs:
+    connectionType: Azure Resource Manager
+    azureSubscriptionEndpoint: demojmeter
+    azureResourceGroup: jmeter
+    kubernetesCluster: jmeterdemo
+    useClusterAdmin: false
+    command: apply
+    arguments: -f jmeter_master_deploy.yaml
+
+
+- task: Kubernetes@1
+  displayName: Deploy Master Configuration
+  inputs:
+    connectionType: Azure Resource Manager
+    azureSubscriptionEndpoint: demojmeter
+    azureResourceGroup: jmeter
+    kubernetesCluster: jmeterdemo
+    useClusterAdmin: false
+    command: apply
+    arguments: -f jmeter_master_configmap.yaml
+
+- task: Kubernetes@1
+  displayName: kubectl get pods
+  inputs:
+    connectionType: Azure Resource Manager
+    azureSubscriptionEndpoint: demojmeter
+    azureResourceGroup: jmeter
+    kubernetesCluster: jmeterdemo
+    useClusterAdmin: false
+    command: get
+    arguments: pods
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/LOADDURATION/$(LOADDURATION)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Load Duration
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/USERS/$(USERS)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Number of Users
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/DELAY/$(DELAY)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Initial Delay
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/STARTUP/$(STARTUP)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Startup Time
+
+- task: CmdLine@2
+  inputs:
+        script: sed -i 's/SHUTDOWN/$(SHUTDOWN)/g' jmeter_demo.jmx
+        workingDirectory: $(Build.SourcesDirectory)/
+  displayName: Setting Shutdown Time
+
+- task: Bash@3
+  inputs:
+     targetType: 'inline'
+     script: az login --service-principal -u $(var4) -p $(var5) --tenant $(var6)
+
+- script: |
+    az aks get-credentials -n jmeterdemo -g jmeter
+    master_pod=`kubectl get pods | grep jmeter-master | awk '{print $1}'`
+    kubectl cp $(Build.SourcesDirectory)/jmeter_demo.jmx "$master_pod:/jmeter_demo.jmx"
+    kubectl cp $(Build.SourcesDirectory)/start_test.sh "$master_pod:/start_test.sh"
+    kubectl exec -ti $master_pod -- sh -c "sh /start_test.sh"
+    kubectl cp "$master_pod:/LoadReports" $(Build.SourcesDirectory)/LoadReports
+
+- task: publishhtmlreport@1
+  inputs:
+    htmlType: 'Jmeter'
+    JmeterReportsPath: '$(Build.SourcesDirectory)/LoadReports'
